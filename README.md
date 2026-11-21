@@ -7,17 +7,21 @@ Samostalna (standalone) portfolio web stranica za predstavljanje agencije **Digi
 - Spremna za GitHub i Vercel (statička stranica).
 - Responzivna (desktop, tablet, mobitel), SEO-optimizovana, s rezervnim prikazom za starije uređaje.
 
-## Sadržaj stranice
+## Kako stranica radi
 
-| # | Sekcija | Šta prikazuje |
-|---|---------|---------------|
-| 01 | DigitalAdvero | 3D tunel od ekrana (WebGL), naziv brenda i kratak opis |
-| 02 | O nama | Izjava koja se otkriva riječ po riječ, pristup i 4 stuba rada |
-| 03 | Naše usluge | 9 interaktivnih kartica usluga |
-| 04 | Portfolio / Projekti | Zakrivljeni 3D zid, velike kartice projekata, detalji u prozoru |
-| 05 | Zašto DigitalAdvero? | 5 prednosti |
-| 06 | Kako radimo? | Animirana vremenska linija od 6 faza |
-| 07 | Kontakt | Poziv na akciju, kontakt podaci iz konfiguracije i forma |
+Cijela stranica je **jedno neprekidno putovanje** kroz 3D okno sačinjeno od ekrana (WebGL), vođeno skrolanjem:
+
+| # | Faza putovanja | Šta se dešava |
+|---|----------------|---------------|
+| 01 | DigitalAdvero | Pogled odozgo u okno (zoetrop) i naziv „DigitalAdvero“ s kratkim opisom |
+| 02 | O nama | Kamera se spušta niz okno i rotira; natpis „Svaki ekran je jedno digitalno rješenje.“ |
+| 03 | Naše usluge | Natpis s 9 usluga dok se plavi pod na dnu približava |
+| 04 | Portfolio / Projekti | Kamera se podiže prema zakrivljenom zidu; ekrani se jedan po jedan skidaju sa zida (indeks desno, naslov dolje lijevo) |
+| 05 | Zašto DigitalAdvero? | Kamera se vraća gore kroz okno; natpis s 5 prednosti |
+| 06 | Kako radimo? | Natpis sa 6 faza rada |
+| 07 | Kontakt | Izlaz iznad okna: „Vaš projekat, sljedeći na zidu.“ i dugme „Započnite projekat“ (kontakt podaci i forma) |
+
+Gore desno je „Indeks“ — brza navigacija do svake faze i svakog projekta.
 
 > **Važno o projektima:** šest prikazanih projekata su **demo koncepti** s izmišljenim brendovima (Lumea, Marena, Kovir, Vigor, Atrio, Verdea). Na stranici su jasno označeni oznakom „Demo koncept“ i ne predstavljaju stvarne klijente. Zamijenite ih stvarnim projektima kada budete spremni (upute ispod).
 
@@ -31,8 +35,8 @@ digitaladvero-portfolio/
 │   ├── css/style.css       ← dizajn (boje, fontovi, animacije)
 │   ├── js/
 │   │   ├── config.js       ← ★ VAŠI KONTAKT PODACI I DRUŠTVENE MREŽE
-│   │   ├── main.js         ← interakcije, animacije, forma
-│   │   ├── stage.js        ← 3D scena (tunel, zid projekata)
+│   │   ├── main.js         ← kamera po skrolu, projekti, indeks, forma
+│   │   ├── stage.js        ← 3D scena (okno i zid od ekrana)
 │   │   └── vendor/         ← Lenis (glatko skrolanje, MIT licenca)
 │   ├── fonts/              ← Instrument Serif i Geist (OFL licenca, lokalno)
 │   └── images/
@@ -159,25 +163,25 @@ Svaka nova izmjena koju pošaljete na GitHub automatski se objavljuje na Vercelu
 2. U `index.html` pronađite komentar **DODAVANJE NOVOG PROJEKTA**, kopirajte cijeli blok `<article class="project" …> … </article>` i zalijepite ga ispod postojećih.
 3. U kopiranom bloku promijenite:
    - `id="projekat-…"` (jedinstven naziv),
-   - `data-accent="#…"` (boja projekta — koristi se za sjaj, pod 3D zida i detalje),
-   - `data-frame="browser"` za web stranice/aplikacije ili `data-frame="plain"` za dizajn, brend i kampanje,
-   - putanje slika, `alt` opise, naslov, kategoriju, opis, funkcionalnosti i usluge.
+   - `data-accent="#…"` (boja okvira kartice kad se skine sa zida),
+   - `data-cover` i `data-cover-sm` (putanje do slika), te sliku u `<figure>`,
+   - naslov, kategoriju, opis i sadržaj detalja (`<template>` s galerijom i funkcionalnostima).
 4. **Za stvarne projekte obrišite** `<span class="badge">Demo koncept</span>` iz bloka. Prozor s detaljima tada automatski skriva napomenu o demo konceptu.
-5. Brojač, lista projekata, 3D tunel i zid automatski preuzimaju nove slike — ništa drugo ne trebate mijenjati.
+5. Indeks, lista projekata i 3D zid automatski preuzimaju novi projekat i njegove slike — ništa drugo ne trebate mijenjati.
 
 Kada dodate stvarne projekte, demo koncepte možete obrisati (cijeli `<article>` blok i odgovarajuću mapu slika). Ako uklonite sve demo koncepte, obrišite i napomenu `<p class="demo-note">…</p>` na početku sekcije projekata.
 
 ## 7. Uređivanje tekstova i boja
 
-- **Tekstovi** se nalaze u `index.html`, svaka sekcija je označena komentarom (`01 — DigitalAdvero`, `02 — O nama` …).
+- **Tekstovi** (naslov, natpisi tokom putovanja, završni ekran) nalaze se u `index.html`; svaka faza je označena komentarom (`01 — DigitalAdvero`, `02 — O nama` …).
 - **Boje i fontovi** su na vrhu `assets/css/style.css` (sekcija „02. Varijable“).
 - **SEO naslov i opis** su u `<head>` dijelu `index.html` (`<title>` i `<meta name="description">`).
 
 ## Tehničke napomene
 
-- **Performanse:** jedno WebGL platno za sve 3D scene, crta se samo kad je scena vidljiva; slike su u WebP formatu (ukupno manje od 1 MB); fontovi su lokalni i učitavaju se unaprijed. Na mobitelima se automatski smanjuje rezolucija 3D scene i isključuju skupi efekti.
+- **Performanse:** jedna WebGL scena (bez vanjskih biblioteka) za cijelo putovanje; slike su u WebP formatu (ukupno manje od 1 MB); fontovi su lokalni. Na mobitelima se automatski smanjuje rezolucija 3D scene.
 - **Pristupačnost:** semantički HTML, navigacija tastaturom, vidljiv fokus, poštuje postavku „smanjeno kretanje“ (prefers-reduced-motion), opisni `alt` tekstovi.
-- **Rezervni prikaz:** bez WebGL podrške prikazuje se CSS pozadina, a bez JavaScripta sav sadržaj ostaje dostupan.
+- **Rezervni prikaz:** bez WebGL podrške prikazuje se jednostavna CSS verzija zoetropa, a bez JavaScripta sav sadržaj ostaje dostupan kao obična stranica.
 - **Podržani preglednici:** savremene verzije Chrome, Edge, Safari i Firefox (desktop i mobilni).
 
 ## Licence
