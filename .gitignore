@@ -1,0 +1,12 @@
+# Sistem
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Alati i zavisnosti
+node_modules/
+.vercel/
+*.log
+.env
+.env.*
+
