@@ -9,7 +9,13 @@ Samostalna (standalone) portfolio web stranica za predstavljanje agencije **Digi
 
 ## Kako stranica radi
 
-Cijela stranica je **jedno neprekidno putovanje** kroz 3D okno sačinjeno od ekrana (WebGL), vođeno skrolanjem:
+Cijela stranica je **jedno neprekidno putovanje** kroz 3D okno sačinjeno od ekrana (WebGL), vođeno skrolanjem, snimljeno „kao akcioni film“:
+
+- **Ekrani svijetle kao televizori** — sjaj (bloom), sken-linije, treperenje, ponegdje ugašen ili prigušen ekran, a okno tamni u dubini.
+- **Tamna, filmska scena** — sjene, vinjeta, filmsko zrno, plavi anamorfni odsjaj i zrake svjetla koje se dižu s poda.
+- **Vjetar uvis** — hiljade čestica struje kroz okno; što je kamera brža, to su tragovi duži.
+- **Akciona kamera** — trešnja „iz ruke“, tutnjava pri brzini, udari (poniranje u okno, tvrdi doskok na dno, skidanje ekrana sa zida, svaka promjena projekta, izlaz iz okna), nagli zaokreti s prebačajem, zamućenje pokreta, razdvajanje boja i bljeskovi u boji projekta.
+- Posjetioci s uključenom postavkom „smanjeno kretanje“ dobijaju mirnu verziju bez trešnje, bljeskova i zamućenja.
 
 | # | Faza putovanja | Šta se dešava |
 |---|----------------|---------------|
@@ -36,7 +42,7 @@ digitaladvero-portfolio/
 │   ├── js/
 │   │   ├── config.js       ← ★ VAŠI KONTAKT PODACI I DRUŠTVENE MREŽE
 │   │   ├── main.js         ← kamera po skrolu, projekti, indeks, forma
-│   │   ├── stage.js        ← 3D scena (okno i zid od ekrana)
+│   │   ├── stage.js        ← 3D scena (okno, zid od ekrana, čestice, filmska obrada slike)
 │   │   └── vendor/         ← Lenis (glatko skrolanje, MIT licenca)
 │   ├── fonts/              ← Instrument Serif i Geist (OFL licenca, lokalno)
 │   └── images/
@@ -179,7 +185,8 @@ Kada dodate stvarne projekte, demo koncepte možete obrisati (cijeli `<article>`
 
 ## Tehničke napomene
 
-- **Performanse:** jedna WebGL scena (bez vanjskih biblioteka) za cijelo putovanje; slike su u WebP formatu (ukupno manje od 1 MB); fontovi su lokalni. Na mobitelima se automatski smanjuje rezolucija 3D scene.
+- **Performanse:** jedna WebGL2 scena (bez vanjskih biblioteka) za cijelo putovanje; efekti (sjaj, zrake, odsjaj) računaju se u smanjenoj rezoluciji, a zamućenje pokreta samo dok se kamera kreće; slike su u WebP formatu (ukupno manje od 1 MB); fontovi su lokalni. Na mobitelima se automatski smanjuje rezolucija 3D scene i broj čestica.
+- **Jačina efekata** se podešava u `assets/js/main.js` (sekcija „akcija: udari, trešnja kamere, brzina“ — funkcija `hit()` i vrijednosti `sway`, `rum`, `imp`) i u `assets/js/stage.js` (objekat `this.fx`: `bloom`, `rays`, `flare`, `vignette`, `grain`).
 - **Pristupačnost:** semantički HTML, navigacija tastaturom, vidljiv fokus, poštuje postavku „smanjeno kretanje“ (prefers-reduced-motion), opisni `alt` tekstovi.
 - **Rezervni prikaz:** bez WebGL podrške prikazuje se jednostavna CSS verzija zoetropa, a bez JavaScripta sav sadržaj ostaje dostupan kao obična stranica.
 - **Podržani preglednici:** savremene verzije Chrome, Edge, Safari i Firefox (desktop i mobilni).

@@ -132,7 +132,7 @@
     var t = $('.project__title', el), title = t.textContent.trim();
     splitChars(t, 0);
     var meta = $('.project__meta', el);
-    return { el: el, i: i, accent: accent, title: title, cover: el.getAttribute('data-cover'), coverSm: el.getAttribute('data-cover-sm') || el.getAttribute('data-cover'),
+    return { el: el, i: i, accent: accent, rgb: Z ? Z.hexToRgb(accent) : [0.6, 0.7, 1], title: title, cover: el.getAttribute('data-cover'), coverSm: el.getAttribute('data-cover-sm') || el.getAttribute('data-cover'),
       metaHTML: meta ? meta.innerHTML : '', isDemo: !!$('.badge', el), tpl: $('template.project__details', el) };
   });
   var N = projects.length;
@@ -186,6 +186,25 @@
     var t = Math.tan(L.fov * DEG / 2), a = L.vw / L.vh;
     L.c0 = Math.max(Z.CYL.R / (0.72 * t), Z.CYL.R / (0.98 * t * a));
     L.c1 = L.c0 * 1.75;
+    // brzine faza: spuštanje bez kočenja (A → B → doskok), penjanje koje ubrzava (E → F)
+    var H = Z.CYL.H;
+    var sA = 2 * (L.c0 + 5) / Math.max(1, L.A1 - L.A0), sB = (H - 14) / Math.max(1, L.C0 - L.A1);
+    L.m0 = clamp(sA / sB, 0.4, 2.6);
+    L.rl = clamp(6.4 / sB / Math.max(1, L.D0 - L.C0), 0.12, 0.45);
+    var sE = 2 * (H - 7.6) / Math.max(1, L.E1 - L.D1);
+    L.j0 = clamp(sE * (L.F1 - L.E1) / (L.c1 + 5), 0.3, 2.9);
+    // položaji događaja (za usklađivanje videa s muzikom)
+    var seg = 1 / Math.max(1, N), span = L.D1 - L.D0, lo = 0, hi = 1, target = 5 / (L.c1 + 5);
+    for (var it = 0; it < 40; it++) { var mid = (lo + hi) / 2; if (hermite(mid, L.j0, 0) < target) lo = mid; else hi = mid; }
+    L.ev = {
+      plunge: L.A0 + Math.sqrt(L.c0 / (L.c0 + 5)) * (L.A1 - L.A0),
+      land: L.C0 + L.rl * (L.D0 - L.C0),
+      pop: L.D0 + (-0.02 + 0.5 * (seg * 0.55 + 0.02)) * span,
+      switches: projects.slice(1).map(function (p, k) { return L.D0 + (k + 1) * seg * span; }),
+      slot: L.D0 + (1 - seg * 0.25) * span,
+      launch: L.D1,
+      exit: L.E1 + (lo + hi) / 2 * (L.F1 - L.E1)
+    };
     if (stage) stage.resize();
   }
 
@@ -195,7 +214,7 @@
     if (!canvas || !Z || !Z.supported()) { root.classList.add('no-webgl'); return; }
     try {
       var opts = { preserve: CAPTURE, onLost: function () { root.classList.add('no-webgl'); } };
-      if (CAPTURE) { opts.maxDpr = parseFloat(query.get('dpr')) || undefined; opts.atlas = parseInt(query.get('atlas'), 10) || undefined; }
+      if (CAPTURE) { opts.maxDpr = parseFloat(query.get('dpr')) || undefined; opts.atlas = parseInt(query.get('atlas'), 10) || undefined; opts.dust = parseInt(query.get('dust'), 10) || undefined; }
       stage = Z.create(canvas, opts);
     } catch (e) { console.warn('[DigitalAdvero] 3D scena nije pokrenuta:', e && e.message); stage = null; root.classList.add('no-webgl'); return; }
     var urls = projects.map(function (p) { return p.coverSm; });
@@ -262,7 +281,14 @@
     leaveT = setTimeout(function () { projects.forEach(function (p, j) { if (j !== active) p.el.classList.remove('is-leaving'); }); }, 900);
     $$('button', idxList).forEach(function (b, j) { b.classList.toggle('is-active', j === i); });
     if (curEl) curEl.textContent = String(i + 1).padStart(2, '0');
+    if (prev >= 0 && cardOut > 0.5) { hit(0.55, 0.24, -6, projects[i].rgb, 0, 1.0); glitchCard(); }
     showOnCard(i, cardOut > 0.5);
+  }
+  var glitchT = null;
+  function glitchCard() {
+    if (!MOTION) return;
+    card.classList.remove('is-glitch'); void card.offsetWidth; card.classList.add('is-glitch');
+    clearTimeout(glitchT); glitchT = setTimeout(function () { card.classList.remove('is-glitch'); }, 520);
   }
   function goToProject(i) { scrollToY(L.D0 + (L.D1 - L.D0) * ((i + 0.5) / N)); }
 
@@ -340,20 +366,64 @@
   });
 
   /* ---------------- kamera: putanja po skrolu ---------------- */
-  var cam = { yawBase: 0, drift: 0, projSmooth: 0 };
+  var cam = { drift: 0, projSmooth: 0, projVel: 0 };
   var cardOut = 0, started = false, introStart = 0, last = 0;
+  function hermite(t, m0, m1) { var t2 = t * t, t3 = t2 * t; return (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) + (t3 - t2) * m1; }
   function cameraAt(sy, dt) {
     var H = Z.CYL.H, pitch = 90 * DEG, back = 0, y, yawB, wallW = 0, fov = L.fov;
-    var d = prog(sy, L.A0, L.A1);
-    if (sy <= L.A1) { y = H + L.c0 - (L.c0 + 5) * d * d; yawB = 0.5 * d * d; }
-    else if (sy <= L.C0) { var q = prog(sy, L.A1, L.C0); y = (H - 5) - (H - 14) * (q * (2 - q)); yawB = 0.5 + 2.4 * q; }
-    else if (sy <= L.D0) { var r = prog(sy, L.C0, L.D0), e = eio(r); y = lerp(9, 2.6, e); pitch = lerp(90, 4, eio((r - 0.08) / 0.92)) * DEG; back = 3.6 * e; yawB = 2.9 + 0.5 * e; wallW = r; fov = lerp(L.fov, L.fovRoom, e); }
-    else if (sy <= L.D1) { y = 2.6; pitch = 4 * DEG; back = 3.6; yawB = 3.4 + cam.projSmooth * 0.42; wallW = 1; fov = L.fovRoom; }
-    else if (sy <= L.E1) { var s = prog(sy, L.D1, L.E1), k = eio(s / 0.4); pitch = lerp(4, 90, k) * DEG; back = 3.6 * (1 - k); y = lerp(2.6, H - 5, eio(s)); yawB = 3.4 + cam.projSmooth * 0.42 + 2.4 * eio(s); wallW = 1 - k; fov = lerp(L.fovRoom, L.fov, k); }
-    else { var f = prog(sy, L.E1, L.F1); y = lerp(H - 5, H + L.c1, eo3(f)); yawB = 3.4 + cam.projSmooth * 0.42 + 2.4 + 0.4 * f; }
+    var yawRoom = 3.4 + cam.projSmooth * 0.42;
+    if (sy <= L.A1) { var d = prog(sy, L.A0, L.A1); y = H + L.c0 - (L.c0 + 5) * d * d; yawB = 0.5 * d * d; }
+    else if (sy <= L.C0) { var q = prog(sy, L.A1, L.C0); y = (H - 5) - (H - 14) * hermite(q, L.m0, 1); yawB = 0.5 + 2.4 * q; }
+    else if (sy <= L.D0) {
+      // pad bez kočenja do dna, tvrdi doskok, pa nagli zaokret kamere prema zidu
+      var r = prog(sy, L.C0, L.D0), up = prog(r, L.rl, 1), e = eio(up);
+      y = lerp(9, 2.6, clamp(r / L.rl, 0, 1));
+      pitch = lerp(90, 4, eio(prog(r, L.rl * 0.85, 0.92))) * DEG;
+      back = 3.6 * e; yawB = 2.9 + 0.5 * eio(r); wallW = up; fov = lerp(L.fov, L.fovRoom, e);
+    }
+    else if (sy <= L.D1) { y = 2.6; pitch = 4 * DEG; back = 3.6; yawB = yawRoom; wallW = 1; fov = L.fovRoom; }
+    else if (sy <= L.E1) {
+      // polijetanje: kamera se okrene nadolje i ubrzava uz okno
+      var s = prog(sy, L.D1, L.E1), k = eio(s / 0.35);
+      pitch = lerp(4, 90, k) * DEG; back = 3.6 * (1 - k); y = lerp(2.6, H - 5, s * s);
+      yawB = yawRoom + 2.4 * eio(s); wallW = 1 - k; fov = lerp(L.fovRoom, L.fov, k);
+    }
+    else { var f = prog(sy, L.E1, L.F1); y = lerp(H - 5, H + L.c1, hermite(f, L.j0, 0)); yawB = yawRoom + 2.4 + 0.4 * f; }
     if (!reduced) cam.drift += dt * 0.035 * (1 - clamp(wallW, 0, 1));
     var yaw = yawB + cam.drift;
     return { x: -back * Math.sin(yaw), y: y, z: back * Math.cos(yaw), yaw: yaw, pitch: pitch, fov: fov };
+  }
+
+  /* ---------------- akcija: udari, trešnja kamere, brzina ---------------- */
+  var MOTION = !reduced, BLUE = [0.55, 0.66, 1.0];
+  var act = { kick: 0, flash: 0, flashCol: BLUE, fovK: 0, fovV: 0, dip: 0, dipV: 0, glitch: 0, speed: 0,
+    vel: [0, 0, 0], yawRate: 0, pitchRate: 0, prev: null, ev: null, spill: BLUE.slice(), spillAmt: 0 };
+  // kick: trešnja, flash: bljesak, fovPunch: udar zuma (°), dip: propadanje kamere (jedinice), glitch: digitalni kvar slike
+  function hit(kick, flash, fovPunch, col, dip, glitch) {
+    if (!MOTION || !started) return;
+    act.kick = Math.max(act.kick, kick);
+    if (flash >= act.flash * 0.6) act.flashCol = col || BLUE;
+    act.flash = Math.max(act.flash, flash);
+    act.fovV += (fovPunch || 0) * 24;
+    act.dipV += (dip || 0) * 14;
+    act.glitch = Math.max(act.glitch, glitch || 0);
+  }
+  function nz(t, s) { return Math.sin(t + s) * 0.5 + Math.sin(t * 1.73 + s * 1.3) * 0.3 + Math.sin(t * 2.71 + s * 2.1) * 0.2; }
+
+  function events(sy, c) {
+    var H = Z.CYL.H, ev = { sy: sy, y: c.y, r: prog(sy, L.C0, L.D0), card: cardOut }, p = act.ev;
+    act.ev = ev;
+    if (!p) return;
+    var accent = active >= 0 ? projects[active].rgb : BLUE;
+    if ((p.y > H) !== (c.y > H)) {
+      if (sy < L.C0) { if (c.y <= H) hit(0.8, 0.34, 9, BLUE, 0, 0.5); else hit(0.35, 0.12, -4, BLUE, 0, 0.3); }   // poniranje u okno / povratak
+      else if (sy > L.D1) { if (c.y > H) hit(0.85, 0.55, 12, BLUE, 0, 0.6); else hit(0.4, 0.15, -5, BLUE, 0, 0.3); } // izlaz iz okna / povratak
+    }
+    if (p.r < L.rl && ev.r >= L.rl) hit(1.0, 0.3, -8, BLUE, -0.42, 0.45);              // tvrdi doskok na dno
+    else if (p.r >= L.rl && ev.r < L.rl) hit(0.4, 0.12, 5, BLUE, 0, 0.2);
+    if (p.card < 0.5 && cardOut >= 0.5) { hit(0.5, 0.22, -6, accent, 0, 0.8); glitchCard(); } // kartica skida se sa zida
+    if (p.card >= 0.5 && cardOut < 0.5) hit(0.55, 0.16, 5, accent, -0.12, 0.5);         // kartica se vraća na zid
+    if ((p.sy < L.D1) !== (sy < L.D1)) hit(0.45, 0.1, 5, BLUE, 0, 0.25);                 // polijetanje / povratak u sobu
   }
 
   /* ---------------- glavna petlja ---------------- */
@@ -362,22 +432,57 @@
     var dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016; last = now;
     if (lenis) lenis.raf(now);
     if (!started) return;
-    var sy = window.scrollY, vh = L.vh, vw = L.vw;
+    var sy = window.scrollY, vh = L.vh, vw = L.vw, t = now / 1000;
 
     // projekti: aktivni indeks
     var wp = (sy - L.D0) / Math.max(1, L.D1 - L.D0);
     var idx = clamp(Math.floor(clamp(wp, 0, 0.9999) * N), 0, N - 1);
     if (sy < L.D0) idx = 0; else if (sy > L.D1) idx = N - 1;
     setProject(idx);
-    cam.projSmooth = damp(cam.projSmooth, idx, 3.2, dt);
+    // opruga okreta sobe: brzi "whip pan" s blagim prebačajem
+    if (MOTION) { cam.projVel += ((idx - cam.projSmooth) * 90 - cam.projVel * 13) * dt; cam.projSmooth += cam.projVel * dt; }
+    else cam.projSmooth = idx;
 
-    // kamera
+    // kamera (osnovna putanja)
     var c = cameraAt(sy, dt);
-    if (stage) { stage.cam.x = c.x; stage.cam.y = c.y; stage.cam.z = c.z; stage.cam.yaw = c.yaw; stage.cam.pitch = c.pitch; stage.cam.fov = c.fov; stage.matrices(); }
 
     // kartica: izlazi sa zida na početku zida, vraća se na kraju
     var seg = 1 / N, popIn = eio(prog(wp, -0.02, seg * 0.55)), popOut = eio(prog(wp, 1 - seg * 0.5, 1.0));
     cardOut = popIn * (1 - popOut);
+
+    // udari i dinamika
+    if (Z) events(sy, c);
+    act.kick *= Math.exp(-dt * 3.6); act.flash *= Math.exp(-dt * 6); act.glitch *= Math.exp(-dt * 6.5);
+    act.fovV += (-act.fovK * 120 - act.fovV * 14) * dt; act.fovK += act.fovV * dt;
+    act.dipV += (-act.dip * 60 - act.dipV * 9) * dt; act.dip += act.dipV * dt;
+    if (act.prev && dt > 0) {
+      var kv = 1 - Math.exp(-dt * 12), P0 = act.prev;
+      act.vel[0] = lerp(act.vel[0], clamp((c.x - P0.x) / dt, -200, 200), kv);
+      act.vel[1] = lerp(act.vel[1], clamp((c.y - P0.y) / dt, -200, 200), kv);
+      act.vel[2] = lerp(act.vel[2], clamp((c.z - P0.z) / dt, -200, 200), kv);
+      act.yawRate = lerp(act.yawRate, clamp((c.yaw - P0.yaw) / dt, -12, 12), kv);
+      act.pitchRate = lerp(act.pitchRate, clamp((c.pitch - P0.pitch) / dt, -12, 12), kv);
+    }
+    act.prev = c;
+    var vmag = Math.sqrt(act.vel[0] * act.vel[0] + act.vel[1] * act.vel[1] + act.vel[2] * act.vel[2]);
+    act.speed = damp(act.speed, clamp(vmag / 36 + Math.abs(act.yawRate) * 0.12, 0, 1.8), 7, dt);
+
+    // trešnja: ručna kamera + tutnjava pri brzini + udari
+    var sp = MOTION ? act.speed : 0, kk = MOTION ? act.kick : 0;
+    var sway = MOTION ? 0.0035 : 0, rum = 0.0045 * sp, imp = 0.03 * kk;
+    var shP = sway * nz(t * 1.7, 1.3) + rum * nz(t * 33, 4.1) + imp * nz(t * 41, 7.7);
+    var shY = sway * nz(t * 1.3, 2.9) + rum * nz(t * 29, 0.7) + imp * nz(t * 37, 3.3);
+    var shR = sway * 0.7 * nz(t * 1.1, 5.2) + rum * 0.6 * nz(t * 25, 9.1) + imp * 0.7 * nz(t * 35, 1.9);
+    var bank = MOTION ? clamp(-act.yawRate * 0.05, -0.07, 0.07) * Math.cos(c.pitch) : 0;
+    var fovF = c.fov + sp * 7 + (MOTION ? act.fovK : 0);
+    if (stage) {
+      var sc = stage.cam;
+      sc.x = c.x; sc.y = c.y + (MOTION ? act.dip : 0); sc.z = c.z; sc.yaw = c.yaw;
+      sc.pitch = c.pitch + shP; sc.pan = shY; sc.roll = shR + bank; sc.fov = fovF;
+      stage.matrices();
+    }
+
+    // kartica (prati panel na zidu, pa lebdi ispred kamere)
     if (stage && cardOut <= 0.001 && wp < 0.5) srcPanel = stage.panelAt(1, 3.4 + cam.drift - Z.CYL.step * 1.2);
     if (stage && popOut <= 0.001) retPanel = stage.panelAt(1, c.yaw + Z.CYL.step * 1.0);
     var tgtPanel = wp > 0.5 ? retPanel : srcPanel;
@@ -387,7 +492,8 @@
       var F = [[R.x, R.y], [R.x + R.w, R.y], [R.x + R.w, R.y + R.h], [R.x, R.y + R.h]];
       var Q = stage && !root.classList.contains('no-webgl') ? stage.panelQuad(tgtPanel) : null;
       var lift = Math.sin(Math.PI * cardOut) * vh * 0.05;
-      var corners = F.map(function (f, k) { var from = Q ? Q[k] : f; return [lerp(from[0], f[0], cardOut), lerp(from[1], f[1], cardOut) - lift]; });
+      var fpx = vh / 2 / Math.tan(fovF * DEG / 2), jx = -shY * fpx * 0.45, jy = shP * fpx * 0.45;
+      var corners = F.map(function (f, k) { var from = Q ? Q[k] : f; return [lerp(from[0], f[0] + jx, cardOut), lerp(from[1], f[1] + jy, cardOut) - lift]; });
       if (cardOut > 0.999) { var fl = Math.sin(now / 1400) * 4; corners = corners.map(function (p) { return [p[0], p[1] + fl]; }); }
       card.style.width = R.w + 'px'; card.style.height = R.h + 'px';
       card.style.transform = quadMatrix(R.w, R.h, corners);
@@ -397,11 +503,31 @@
     } else { card.style.opacity = 0; card.classList.remove('is-out'); }
     stageEl.classList.toggle('is-live', cardOut > 0.6);
 
+    // efekti slike: zamućenje pokreta, razdvajanje boja, bljesak, vjetar, svjetlo projekta na podu
+    if (stage) {
+      var fx = stage.fx, SHUT = 1 / 30, fovy = fovF * DEG, fovx = 2 * Math.atan(Math.tan(fovy / 2) * vw / vh);
+      var fw = [Math.sin(c.yaw) * Math.cos(c.pitch), -Math.sin(c.pitch), -Math.cos(c.yaw) * Math.cos(c.pitch)];
+      var vf = act.vel[0] * fw[0] + act.vel[1] * fw[1] + act.vel[2] * fw[2];
+      fx.blur = MOTION ? clamp(Math.abs(vf) * 0.0006, 0, 0.04) + kk * 0.012 : 0;
+      fx.spin = MOTION ? clamp(act.yawRate * Math.sin(c.pitch) * SHUT, -0.07, 0.07) : 0;
+      fx.pan = MOTION ? [clamp(act.yawRate * Math.cos(c.pitch) * SHUT / fovx, -0.045, 0.045), clamp(act.pitchRate * SHUT / fovy, -0.045, 0.045)] : [0, 0];
+      fx.ca = 0.001 + sp * 0.0022 + kk * 0.004;
+      fx.glitch = MOTION ? act.glitch : 0;
+      fx.flash = MOTION ? act.flash : 0; fx.flashCol = act.flashCol;
+      fx.vignette = 0.58 + sp * 0.12 + kk * 0.08;
+      fx.wind = 5 + sp * 6;
+      fx.dust = 0.8 + sp * 0.5;
+      var acc = active >= 0 ? projects[active].rgb : BLUE;
+      for (var ch = 0; ch < 3; ch++) act.spill[ch] = damp(act.spill[ch], acc[ch], 5, dt);
+      act.spillAmt = damp(act.spillAmt, cardOut, 4, dt);
+      fx.spill = act.spill; fx.spillAmt = act.spillAmt * 0.85;
+    }
+
     // otvaranje: naslov putuje dolje lijevo i nestaje
     var d = prog(sy, L.A0, L.A1);
-    var m = eio(d / 0.6), sc = lerp(1, vw < 860 ? 0.5 : 0.36, m);
-    var x0 = (vw - L.tw) / 2, y0 = (vh - L.th) / 2, x1 = vw < 860 ? 20 : vw * 0.034, y1 = vh - L.th * sc - vh * 0.08;
-    openTitle.style.transform = 'translate3d(' + lerp(x0, x1, m).toFixed(1) + 'px,' + lerp(y0, y1, m).toFixed(1) + 'px,0) scale(' + sc.toFixed(4) + ')';
+    var m = eio(d / 0.6), sc2 = lerp(1, vw < 860 ? 0.5 : 0.36, m);
+    var x0 = (vw - L.tw) / 2, y0 = (vh - L.th) / 2, x1 = vw < 860 ? 20 : vw * 0.034, y1 = vh - L.th * sc2 - vh * 0.08;
+    openTitle.style.transform = 'translate3d(' + lerp(x0, x1, m).toFixed(1) + 'px,' + lerp(y0, y1, m).toFixed(1) + 'px,0) scale(' + sc2.toFixed(4) + ')';
     var fadeP = prog(d, 0.3, 0.8), n = titleChars.length;
     for (var i = 0; i < n; i++) titleChars[i].style.opacity = d > 0.001 ? (1 - smooth((fadeP * (n + 4) - i) / 4)).toFixed(3) : '';
     var sub = $('.j-sub', openTitle); sub.style.opacity = d > 0.001 ? (1 - smooth(d / 0.25)).toFixed(3) : '';
@@ -420,7 +546,7 @@
     endInner.style.opacity = ep.toFixed(3);
     endInner.style.transform = 'translate3d(0,' + ((1 - eo3(ep)) * 40).toFixed(1) + 'px,0)';
 
-    if (stage && !doc.hidden) stage.render();
+    if (stage && !doc.hidden) stage.render(t, dt);
   }
 
   /* ---------------- pokretanje ---------------- */
@@ -446,7 +572,8 @@
   window.__DA = {
     capture: CAPTURE, imagesLoaded: false,
     isStarted: function () { return started; },
-    layout: function () { measure(); return { A0: L.A0, A1: L.A1, C0: L.C0, D0: L.D0, D1: L.D1, E1: L.E1, F1: L.F1, why: L.why, vh: L.vh, caps: L.caps.map(function (c) { return { top: c.top, h: c.h }; }), n: N }; },
-    openProject: openModal, closeProject: function () { hideModal(modal, true); }
+    layout: function () { measure(); return { A0: L.A0, A1: L.A1, C0: L.C0, D0: L.D0, D1: L.D1, E1: L.E1, F1: L.F1, why: L.why, vh: L.vh, caps: L.caps.map(function (c) { return { top: c.top, h: c.h }; }), n: N, ev: L.ev }; },
+    openProject: openModal, closeProject: function () { hideModal(modal, true); },
+    state: function () { return { y: stage ? stage.cam.y : 0, fov: stage ? stage.cam.fov : 0, speed: act.speed, kick: act.kick, flash: act.flash, blur: stage ? stage.fx.blur : 0, card: cardOut }; }
   };
 })();
