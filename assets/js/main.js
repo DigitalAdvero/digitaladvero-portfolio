@@ -184,7 +184,7 @@
     L.fov = L.vw < L.vh ? 62 : 55;
     L.fovRoom = L.vw < L.vh ? 76 : 68;
     var t = Math.tan(L.fov * DEG / 2), a = L.vw / L.vh;
-    L.c0 = Math.max(Z.CYL.R / (0.72 * t), Z.CYL.R / (0.86 * t * a));
+    L.c0 = Math.max(Z.CYL.R / (0.72 * t), Z.CYL.R / (0.98 * t * a));
     L.c1 = L.c0 * 1.75;
     if (stage) stage.resize();
   }
